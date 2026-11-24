@@ -104,10 +104,37 @@ def test_same_day_repeats_are_collapsed_at_write_time(client):
 
     import json
 
+    # New/born combinations use the normalized per-day summary format: one
+    # row per (district, ear_tag, day) carrying the collapsed capture count.
+    with db.read_transaction() as conn:
+        rows = conn.execute(
+            """
+            SELECT observed_on, capture_count
+            FROM tag_day_counts
+            WHERE district = ? AND ear_tag = ?
+            ORDER BY observed_on
+            """,
+            ("北沟片区", "ET-1"),
+        ).fetchall()
+        registry = conn.execute(
+            "SELECT format, observed_days FROM summary_registry "
+            "WHERE district = ? AND ear_tag = ?",
+            ("北沟片区", "ET-1"),
+        ).fetchone()
+    assert [[r["observed_on"], r["capture_count"]] for r in rows] == [
+        ["2026-03-01", 4]
+    ]
+    assert registry["format"] == "new"
+    assert registry["observed_days"] == 1
+
+    # Legacy JSON summaries remain supported for not-yet-migrated combinations.
+    with db.write_transaction() as conn:
+        for i in range(4):
+            repository._add_day(conn, "北沟片区", "ET-LEGACY", "2026-03-01")
     with db.read_transaction() as conn:
         row = conn.execute(
             "SELECT day_counts FROM tag_summaries WHERE district = ? AND ear_tag = ?",
-            ("北沟片区", "ET-1"),
+            ("北沟片区", "ET-LEGACY"),
         ).fetchone()
     assert json.loads(row["day_counts"]) == [["2026-03-01", 4]]
 

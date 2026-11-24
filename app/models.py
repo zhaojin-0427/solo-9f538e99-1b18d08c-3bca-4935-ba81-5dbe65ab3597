@@ -204,3 +204,38 @@ class AllDistrictStats(BaseModel):
     total_multi_day_count: int = Field(description="所有片区至少两天个体数合计")
     districts: list[DistrictStatsBrief]
     state_version: int = Field(description="本次读取所依据的已提交状态版本号")
+
+
+class MigrationRequest(BaseModel):
+    """Migrate one (district, ear_tag) summary combination."""
+
+    model_config = ConfigDict(
+        extra="ignore",
+        json_schema_extra={
+            "examples": [
+                {"district": "北沟片区", "ear_tag": "ET-1024"},
+                {"district": "北沟片区", "ear_tag": "ET-1024", "step": True},
+            ]
+        },
+    )
+
+    district: Identifier = Field(
+        description="片区",
+        validation_alias=AliasChoices("district", "area", "zone", "片区"),
+    )
+    ear_tag: Identifier = Field(
+        description="耳标号",
+        validation_alias=AliasChoices("ear_tag", "tag", "ear_tag_no", "耳标号"),
+    )
+    step: bool = Field(
+        default=False,
+        description="为 true 时只推进一个迁移写事务（最多改写 128 个日期），便于试跑/断点续迁",
+        validation_alias=AliasChoices("step", "chunk_only", "one_chunk"),
+    )
+    max_days: int | None = Field(
+        default=None,
+        ge=1,
+        le=128,
+        description="单个迁移写事务最多改写的日期数，硬上限 128",
+        validation_alias=AliasChoices("max_days", "batch_days", "batch_size", "chunk_days"),
+    )
